@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NutriTrack Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f2f5f3;--card:#fff;--bd:#e2e9e4;--tx:#10231a;--mu:#5f7268;--ac:#16a34a;--acl:#dcfce7;--p:#3b82f6;--c:#f59e0b;--f:#8b5cf6;--k:#16a34a;--bad:#dc2626;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root[data-theme="auto"]{--bg:#0d0f11;--card:#16191c;--bd:#262b30;--tx:#eceff2;--mu:#8b95a1;--acl:#12301f}}
+html,body{background:linear-gradient(180deg,#d5f3df 0,#f2f5f3 380px) no-repeat #f2f5f3;color:var(--tx);font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;margin:0}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(16,35,26,.05)}
+.mu{color:var(--mu)}
+.btn{border:1px solid var(--bd);border-radius:10px;padding:8px 14px;font-weight:600;background:var(--card);cursor:pointer}
+.btn:hover{border-color:var(--ac)}.btn:active{transform:scale(.97)}
+.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.inp{border:1px solid var(--bd);border-radius:10px;padding:9px 11px;background:#fff;color:var(--tx);width:100%}
+.inp:focus,.btn:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.bar{height:8px;border-radius:4px;background:var(--bd);overflow:hidden}.bar>i{display:block;height:100%;border-radius:4px}
+input[type=checkbox]{accent-color:#16a34a}.chip{border:1px solid var(--bd);border-radius:999px;padding:6px 12px;font-weight:600;background:#fff;cursor:pointer}.chip.on{background:var(--acl);border-color:var(--ac);color:#15803d}
+h1{font-size:26px;font-weight:800;line-height:1.15;letter-spacing:-.01em}h2{font-size:15px;font-weight:700}
+.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.scroll{overflow-x:auto}.opt:hover{background:#f1f5f2!important}
+@keyframes sc{0%{top:4%}100%{top:94%}}
+.scanline{position:absolute;left:0;right:0;height:3px;background:#4ade80;box-shadow:0 0 16px 4px #4ade80;animation:sc 1.4s ease-in-out infinite alternate}
+@media(prefers-reduced-motion:reduce){.scanline{animation:none;top:50%}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useMemo,useEffect,useRef}=React;
+const html=htm.bind(React.createElement);
+const R=Math.round, sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+const MEALS=['Breakfast','Lunch','Dinner','Snacks'], DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// name, kcal, protein, carbs, fat, fiber g, sodium mg, potassium mg
+const F=[['Oatmeal, 1 cup',150,5,27,3,4,2,164],['Greek yogurt, 200g',130,23,8,1,0,80,240],['Scrambled eggs, 2',180,12,2,14,0,340,140],['Banana',105,1,27,0,3,1,422],['Chicken breast, 150g',248,46,0,5,0,110,420],['Brown rice, 1 cup',215,5,45,2,4,10,84],['Salmon fillet, 150g',310,34,0,18,0,90,620],['Avocado, half',120,1,6,11,5,5,345],['Almonds, 30g',175,6,6,15,4,0,208],['Sweet potato, medium',112,2,26,0,4,72,438],['Lentil soup, 1 bowl',230,15,38,2,15,720,610],['Whole wheat toast, 2',160,8,28,2,4,290,130],['Protein shake',160,25,6,3,1,180,300],['Apple',95,0,25,0,4,2,195],['Broccoli, 1 cup',55,4,11,1,5,64,457]];
+const mk=(m,f)=>({id:Math.random().toString(36).slice(2),meal:m,n:f[0],cal:f[1],p:f[2],c:f[3],f:f[4],fi:f[5],na:f[6],k:f[7]});
+// 90 days of prior history (oldest first)
+const H=Array.from({length:90},(_,i)=>({cal:2050+((i*37)%9)*35-150,wt:+(88-i*.045+((i*7)%5-2)*.15).toFixed(1),water:4+(i*5)%5,fi:18+(i*3)%12}));
+const REC=[{n:'Chicken rice bowl',cal:620,p:48,ing:[['Chicken breast',300,'g','Meat'],['Brown rice',100,'g','Pantry'],['Broccoli',150,'g','Produce']]},{n:'Overnight oats',cal:410,p:24,ing:[['Rolled oats',60,'g','Pantry'],['Greek yogurt',150,'g','Dairy'],['Banana',1,'pc','Produce']]},{n:'Salmon and sweet potato',cal:640,p:42,ing:[['Salmon fillet',180,'g','Meat'],['Sweet potato',1,'pc','Produce'],['Broccoli',150,'g','Produce']]},{n:'Veggie omelette',cal:380,p:26,ing:[['Eggs',3,'pc','Dairy'],['Spinach',60,'g','Produce'],['Cheddar',30,'g','Dairy']]},{n:'Lentil stew',cal:520,p:28,ing:[['Red lentils',100,'g','Pantry'],['Carrots',2,'pc','Produce'],['Canned tomatoes',400,'g','Pantry']]}];
+const SEED=Object.fromEntries(DAYS.flatMap((x,d)=>[[x+"Breakfast",[1,3][d%2]],[x+"Lunch",[0,4][d%2]],[x+"Dinner",[2,4,0][d%3]]]));
+const init={log:[mk('Breakfast',F[0]),mk('Breakfast',F[1]),mk('Lunch',F[4]),mk('Lunch',F[5])],water:3,wt:null,wcount:0,profile:null,showSet:false,plan:SEED,checked:{},recovery:false};
+const wk=(new Date().getDay()+6)%7;
+
+const ACT=[['Sedentary',1.2],['Lightly active',1.375],['Moderately active',1.55],['Very active',1.725]];
+const DEF={age:30,sex:'Male',wt:80,tw:75,ht:178,act:1.375};
+function plan(p){const w=p.wt,bmr=10*w+6.25*p.ht-5*p.age+(p.sex==='Male'?5:-161),tdee=R(bmr*p.act),gap=p.tw-w;
+  let adj=0;if(gap<-.3)adj=-Math.min(-gap/20*1100,w*.01*1100,tdee*.3);else if(gap>.3)adj=Math.min(gap/20*1100,w*.005*1100);
+  const target=R(Math.max(p.sex==='Male'?1500:1200,tdee+adj)),a2=target-tdee,P=R(w*1.9),F=R(target*.25/9),C=R((target-P*4-F*9)/4),pace=+(a2*7/7700).toFixed(2);
+  return{bmr:R(bmr),tdee,target,P,F,C,adj:R(a2),pace,wks:pace?Math.ceil(Math.abs(gap)/Math.abs(pace)):0}}
+function calc(s){
+  const p=s.profile||DEF, pl=plan(p);
+  const sh=p.wt-H[89].wt, k=pl.target/(sum(H.slice(-14),x=>x.cal)/14);
+  const HH=H.map(x=>({...x,cal:R(x.cal*k),wt:+(x.wt+sh).toFixed(1)}));
+  const h=HH.slice(-14), w=h.map(x=>x.wt).concat(s.wt?[s.wt]:[]), n=w.length;
+  const mx=(n-1)/2, my=sum(w,x=>x)/n;
+  const slope=w.reduce((t,y,i)=>t+(i-mx)*(y-my),0)/w.reduce((t,y,i)=>t+(i-mx)**2,0);
+  const avg=sum(h,x=>x.cal)/h.length, bl=Math.min(.7,(s.wcount||0)/10);
+  const tdee=R(pl.tdee*(1-bl)+(avg-slope*7700)*bl), target=R(tdee+pl.adj);
+  const cw=s.wt||p.wt, P=R(cw*1.9), Fa=R(target*.25/9), C=R((target-P*4-Fa*9)/4);
+  const t=['cal','p','c','f','fi','na','k'].reduce((o,k)=>({...o,[k]:sum(s.log,x=>x[k])}),{});
+  const T={cal:target,p:P,c:C,f:Fa};
+  const week=DAYS.map((_,i)=>i<wk?HH[89-(wk-i)].cal:i===wk?t.cal:null);
+  const eaten=sum(week.filter(x=>x!==null),x=>x), rem=6-wk;
+  const raw=rem>0?(target*7-eaten)/rem:target, adj=R(Math.max(target*.85,Math.min(target*1.05,raw)));
+  return {H:HH,bl,tdee,slope,avg,target,T,t,week,adj,capped:raw<target*.85,surplus:R(eaten-target*(wk+1)),cw,rem};
+}
+
+function Ring({v,max,color,label,unit}){
+  const r=34,c=2*Math.PI*r,p=Math.min(1,v/max);
+  return html`<div class="flex flex-col items-center gap-2"><svg width="88" height="88" viewBox="0 0 88 88" role="img" aria-label=${label+' '+R(v)+' of '+max}><circle cx="44" cy="44" r=${r} fill="none" stroke="var(--bd)" stroke-width="7"/><circle cx="44" cy="44" r=${r} fill="none" stroke=${color} stroke-width="7" stroke-linecap="round" stroke-dasharray=${c} stroke-dashoffset=${c*(1-p)} transform="rotate(-90 44 44)" style=${{transition:'stroke-dashoffset .5s'}}/><text x="44" y="48" text-anchor="middle" font-size="15" font-weight="600" fill="var(--tx)">${R(v)}</text></svg><div class="text-center"><div class="font-medium">${label}</div><div class="mu text-xs">of ${max}${unit}</div></div></div>`;
+}
+function Lin({label,v,max,color,unit}){
+  return html`<div><div class="flex justify-between mb-1.5"><span>${label}</span><span class="mu">${R(v)} / ${max}${unit}</span></div><div class="bar"><i style=${{width:Math.min(100,v/max*100)+'%',background:color}}></i></div></div>`;
+}
+function Chart({data,h=140,bars,ref0,color='var(--ac)',hi}){
+  const W=600,mn=bars?0:Math.min(...data),mxv=Math.max(...data,ref0||0),sx=i=>i*(W/(data.length-1||1)),sy=v=>h-8-(v-mn)/(mxv-mn||1)*(h-16);
+  const bw=W/data.length;
+  return html`<svg viewBox=${'0 0 '+W+' '+h} class="w-full" style=${{height:h}} preserveAspectRatio="none">${ref0?html`<line x1="0" x2=${W} y1=${sy(ref0)} y2=${sy(ref0)} stroke="var(--mu)" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`:null}${bars?data.map((v,i)=>html`<rect key=${i} x=${i*bw+bw*.15} width=${bw*.7} y=${sy(v)} height=${h-8-sy(v)} fill=${i===data.length-1&&hi?hi:color} rx="1"/>`):html`<polyline fill="none" stroke=${color} stroke-width="2" vector-effect="non-scaling-stroke" points=${data.map((v,i)=>sx(i)+','+sy(v)).join(' ')}/>`}</svg>`;
+}
+const Head=({t,d,children})=>html`<div class="flex flex-wrap items-end justify-between gap-3 mb-4"><div><h1>${t}</h1><p class="mu mt-1">${d}</p></div>${children}</div>`;
+
+function BigRing({v,max}){const r=70,c=2*Math.PI*r,p=Math.min(1,v/max),left=max-v;
+  return html`<svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label=${R(v)+' of '+max+' kcal'}><circle cx="90" cy="90" r=${r} fill="none" stroke="rgba(255,255,255,.28)" stroke-width="14"/><circle cx="90" cy="90" r=${r} fill="none" stroke=${left<0?'#fecaca':'#fff'} stroke-width="14" stroke-linecap="round" stroke-dasharray=${c} stroke-dashoffset=${c*(1-p)} transform="rotate(-90 90 90)" style=${{transition:'stroke-dashoffset .5s'}}/><text x="90" y="88" text-anchor="middle" font-size="34" font-weight="700" fill="#fff">${Math.abs(R(left))}</text><text x="90" y="108" text-anchor="middle" font-size="12" fill="#dcfce7">${left<0?'kcal over':'kcal left'}</text></svg>`}
+function Dashboard({s,d,up}){
+  const [wi,setWi]=useState('');
+  const streak=(()=>{let n=0;for(let i=89;i>=0;i--){if(Math.abs(d.H[i].cal-d.target)<=d.target*.18)n++;else break}return n+(s.log.length?1:0)})();
+  const m=d.t, hr=new Date().getHours(), gr=(hr<12?'Good morning':hr<18?'Good afternoon':'Good evening')+'. Ready to fuel up?', lf=R(d.T.cal-m.cal), msg=lf>=0?'You have '+lf+' kcal and '+Math.max(0,R(d.T.p-m.p))+'g protein left to play with. Make them count.':'You are '+(-lf)+' kcal over today. No stress, the Coach tab has a gentle fix.';
+  return html`<div>
+  <${Head} t=${gr} d=${msg}/>
+  <div class="grid gap-4 lg:grid-cols-3">
+    <div class="card lg:col-span-2 grid sm:grid-cols-[230px_1fr] items-stretch" style=${{padding:0,overflow:'hidden'}}>
+      <div class="flex flex-col items-center justify-center gap-1 p-5" style=${{background:'linear-gradient(145deg,#15803d,#22c55e 60%,#a3e635)',color:'#fff'}}><${BigRing} v=${m.cal} max=${d.T.cal}/><div class="font-semibold">Target ${d.T.cal} kcal</div></div>
+      <div class="flex flex-col gap-4 p-4 justify-center">
+        <div class="flex justify-between"><div><div class="mu text-xs">Eaten</div><b class="text-lg">${R(m.cal)}</b></div><div><div class="mu text-xs">Target</div><b class="text-lg">${d.T.cal}</b></div><div><div class="mu text-xs">Burn estimate</div><b class="text-lg">${d.tdee}</b></div></div>
+        <div class="grid grid-cols-3 gap-2"><${Ring} v=${m.p} max=${d.T.p} color="var(--p)" label="Protein" unit="g"/><${Ring} v=${m.c} max=${d.T.c} color="var(--c)" label="Carbs" unit="g"/><${Ring} v=${m.f} max=${d.T.f} color="var(--f)" label="Fat" unit="g"/></div></div></div>
+    <div class="card flex flex-col gap-3" style=${{borderTop:"4px solid var(--ac)"}}><h2>Expenditure recalibration</h2>
+      <div><div class="text-3xl font-bold">${d.tdee} <span class="text-base mu font-normal">kcal TDEE</span></div><p class="mu mt-1">Starts from your profile and shifts toward your logged data as you weigh in (${R(d.bl/.7*100)}% data driven). Trend: ${(d.slope*7).toFixed(2)} kg per week.</p></div>
+      <div class="flex justify-between border-t pt-3" style=${{borderColor:'var(--bd)'}}><span>Daily target</span><b>${d.target} kcal</b></div>
+      <div class="flex gap-2"><input class="inp" inputmode="decimal" placeholder=${'Weight today (kg), now '+d.cw} value=${wi} onInput=${e=>setWi(e.target.value)}/><button class="btn pri" onClick=${()=>{const v=parseFloat(wi);if(v>30&&v<300){up(o=>({wt:v,wcount:(o.wcount||0)+1}));setWi('')}}}>Log</button></div></div>
+    <div class="lg:col-span-3 grid gap-4 sm:grid-cols-3">
+      <div class="card" style=${{background:"linear-gradient(135deg,#fff1e0,#ffd9b0)",borderColor:"#fed7aa"}}><h2 class="mb-2">🔥 Streak</h2><div class="text-3xl font-bold" style=${{color:"#c2410c"}}>${streak} days</div><p class="mu mt-1">Days within 18% of target in a row.</p></div>
+      <div class="card" style=${{background:"linear-gradient(135deg,#e0f4ff,#bfe6fb)",borderColor:"#bae6fd"}}><div class="flex justify-between mb-3"><h2>💧 Water</h2><span class="mu">${s.water} of 8</span></div><div class="flex gap-1 mb-3">${Array.from({length:8},(_,i)=>html`<div key=${i} class="bar flex-1" style=${{background:i<s.water?'#0ea5e9':'var(--bd)'}}></div>`)}</div><div class="flex gap-2"><button class="btn" onClick=${()=>up({water:Math.max(0,s.water-1)})}>Remove</button><button class="btn pri" onClick=${()=>up({water:s.water+1})}>Add glass</button></div></div>
+      <div class="card" style=${{background:"linear-gradient(135deg,#f3edff,#e2d6ff)",borderColor:"#ddd0ff"}}><h2 class="mb-3">🎯 Micro goals</h2><div class="flex flex-col gap-2">${[['Protein target',m.p>=d.T.p],['Fiber 30g',m.fi>=30],['8 glasses of water',s.water>=8],['Stay under calories',m.cal>0&&m.cal<=d.T.cal]].map(([l,ok])=>html`<div key=${l} class="flex items-center gap-2"><span style=${{width:12,height:12,borderRadius:6,background:ok?'var(--ac)':'var(--bd)'}}></span><span class=${ok?'':'mu'}>${l}</span></div>`)}</div></div></div>
+    <div class="card lg:col-span-2"><h2 class="mb-2">Today's meals</h2>${MEALS.map(x=>{const it=s.log.filter(y=>y.meal===x);return html`<div key=${x} class="py-2.5 border-b last:border-0" style=${{borderColor:'var(--bd)'}}><div class="flex justify-between"><span class="font-semibold">${({Breakfast:'🍳',Lunch:'🥗',Dinner:'🍝',Snacks:'🍎'})[x]+' '+x}</span><b style=${{color:'var(--ac)'}}>${sum(it,y=>y.cal)} kcal</b></div><div class="mu text-xs truncate">${it.length?it.map(y=>y.n).join(', '):'Nothing logged yet'}</div></div>`})}</div>
+    <div class="card" style=${{borderTop:"4px solid var(--p)"}}><div class="flex justify-between mb-2"><h2>Last 7 days</h2><span class="mu">kcal</span></div><${Chart} data=${d.H.slice(-7).map(x=>x.cal)} bars=${true} ref0=${d.target} h=${170}/></div>
+  </div></div>`;
+}
+
+const Modal=({children,close})=>html`<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style=${{background:'rgba(0,0,0,.5)'}} onClick=${close}><div class="card w-full max-w-md max-h-[85vh] overflow-auto" onClick=${e=>e.stopPropagation()}>${children}</div></div>`;
+
+function Onboard({s,up}){
+  const p0=s.profile||DEF;
+  const [f,setF]=useState({age:''+p0.age,sex:p0.sex,wt:''+p0.wt,tw:''+p0.tw,ht:''+p0.ht,act:p0.act});
+  const nf={age:+f.age,sex:f.sex,wt:+f.wt,tw:+f.tw,ht:+f.ht,act:+f.act};
+  const ok=nf.age>=14&&nf.wt>=30&&nf.tw>=30&&nf.ht>=100;
+  const pl=ok?plan(nf):null;
+  const fld=(k,l)=>html`<label class="block"><span class="mu text-xs mb-1 block">${l}</span><input class="inp" inputmode="decimal" value=${f[k]} onInput=${e=>setF({...f,[k]:e.target.value})}/></label>`;
+  return html`<${Modal} close=${()=>{if(s.profile)up({showSet:false})}}>
+    <h2 class="text-lg mb-1">${s.profile?'Profile settings':'Set up your plan'}</h2><p class="mu mb-4">Your targets are calculated from these details and update whenever you change them.</p>
+    <div class="grid grid-cols-2 gap-3 mb-3">${fld('age','Age')}${fld('ht','Height (cm)')}${fld('wt','Current weight (kg)')}${fld('tw','Target weight (kg)')}</div>
+    <div class="mb-3"><span class="mu text-xs mb-1 block">Biological gender</span><div class="grid grid-cols-2 gap-2">${['Male','Female'].map(x=>html`<button key=${x} class=${'btn '+(f.sex===x?'on':'')} onClick=${()=>setF({...f,sex:x})}>${x}</button>`)}</div></div>
+    <label class="block mb-4"><span class="mu text-xs mb-1 block">Activity level</span><select class="inp" value=${f.act} onChange=${e=>setF({...f,act:e.target.value})}>${ACT.map(([n,v])=>html`<option key=${n} value=${v}>${n}</option>`)}</select></label>
+    ${pl?html`<div class="rounded-xl p-3 mb-4" style=${{background:'var(--acl)'}}><div class="flex justify-between mb-2"><span>Maintenance (TDEE)</span><b>${pl.tdee} kcal</b></div><div class="flex justify-between mb-2"><span>Daily target</span><b>${pl.target} kcal</b></div><div class="flex justify-between mb-2"><span>Pace</span><b>${pl.pace<0?'Lose '+(-pl.pace)+' kg per week':pl.pace>0?'Gain '+pl.pace+' kg per week':'Maintain weight'}</b></div><div class="flex justify-between mb-2"><span>Time to goal</span><b>${pl.wks?pl.wks+' weeks':'Already there'}</b></div><div class="flex justify-between"><span>Protein / Carbs / Fat</span><b>${pl.P}g / ${pl.C}g / ${pl.F}g</b></div></div>`:html`<p class="mb-4" style=${{color:'var(--bad)'}}>Enter valid values to see your targets.</p>`}
+    <div class="flex gap-2 justify-end">${s.profile?html`<button class="btn" onClick=${()=>up({showSet:false})}>Cancel</button>`:null}<button class="btn pri" disabled=${!ok} onClick=${()=>ok&&up({profile:nf,showSet:false,wt:null,wcount:0})}>Save and continue</button></div><//>`;
+}
+function Camera({onShot,onClose}){
+  const [st,setSt]=useState('view'),[pr,setPr]=useState(0),[live,setLive]=useState(false),v=useRef(null),ms=useRef(null),iv=useRef(null);
+  useEffect(()=>{let dead=false;
+    try{navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(m=>{if(dead){m.getTracks().forEach(x=>x.stop());return}ms.current=m;setLive(true)}).catch(()=>{})}catch(e){}
+    return()=>{dead=true;clearInterval(iv.current);ms.current&&ms.current.getTracks().forEach(x=>x.stop())}},[]);
+  useEffect(()=>{if(live&&v.current)v.current.srcObject=ms.current},[live]);
+  const run=async b=>{setSt('scan');let p=0;iv.current=setInterval(()=>{p=Math.min(p+3,92);setPr(p)},150);try{await onShot(b)}finally{clearInterval(iv.current)}};
+  const shoot=()=>{const el=v.current;if(!live||!el||!el.videoWidth)return;const c=document.createElement('canvas'),k=Math.min(1,1024/el.videoWidth);c.width=el.videoWidth*k;c.height=el.videoHeight*k;c.getContext('2d').drawImage(el,0,0,c.width,c.height);c.toBlob(b=>b&&run(b),'image/jpeg',.85)};
+  const br='absolute w-10 h-10 border-white ';
+  return html`<div class="fixed inset-0 z-50 flex flex-col" style=${{background:'#0a0f0c',color:'#fff'}}>
+    <div class="flex justify-between items-center p-4"><button class="btn" style=${{background:'transparent',color:'#fff',borderColor:'#ffffff55'}} onClick=${onClose} disabled=${st==='scan'}>Close</button><span>${st==='scan'?'Looking at your meal':'Center your meal in the frame'}</span><span style=${{width:64}}></span></div>
+    <div class="relative flex-1 mx-4 rounded-2xl overflow-hidden" style=${{background:'radial-gradient(circle at 50% 45%,#2f5d3f,#0f1f16 75%)'}}>
+      ${live?html`<video ref=${v} autoPlay playsInline muted class="absolute inset-0 w-full h-full object-cover"></video>`:html`<div class="absolute inset-0 flex items-center justify-center text-center px-8" style=${{color:'#cbd5cf'}}>Camera access is unavailable here. Use Upload to pick a photo of your meal instead.</div>`}
+      <div class="absolute inset-8 sm:inset-16"><div class=${br+'top-0 left-0 border-t-4 border-l-4 rounded-tl-2xl'}></div><div class=${br+'top-0 right-0 border-t-4 border-r-4 rounded-tr-2xl'}></div><div class=${br+'bottom-0 left-0 border-b-4 border-l-4 rounded-bl-2xl'}></div><div class=${br+'bottom-0 right-0 border-b-4 border-r-4 rounded-br-2xl'}></div>${st==='scan'?html`<div class="scanline"></div>`:null}</div></div>
+    <div class="p-5 flex flex-col items-center gap-3">${st==='scan'?html`<div class="w-full max-w-sm"><div class="bar" style=${{background:'#ffffff30'}}><i style=${{width:pr+'%',background:'#4ade80'}}></i></div><p class="text-center mt-2">Identifying foods and estimating macros</p></div>`:html`<div class="flex items-center gap-6"><label class="btn cursor-pointer" style=${{background:'transparent',color:'#fff',borderColor:'#ffffff55'}}>Upload<input type="file" accept="image/*" class="hidden" onChange=${e=>e.target.files[0]&&run(e.target.files[0])}/></label><button aria-label="Take photo" onClick=${shoot} style=${{width:72,height:72,borderRadius:36,background:'#fff',border:'6px solid #ffffff66',backgroundClip:'padding-box',opacity:live?1:.4}}></button><span style=${{width:72}}></span></div>`}</div></div>`;
+}
+
+function Log({s,d,up}){
+  const [meal,setMeal]=useState('Breakfast'),[q,setQ]=useState(''),[cam,setCam]=useState(false),[note,setNote]=useState(''),[res,setRes]=useState(null),[cu,setCu]=useState({n:'',cal:'',p:'',c:'',f:''});
+  const add=(m,f)=>up(o=>({log:[...o.log,mk(m,f)]}));
+  const list=F.filter(f=>f[0].toLowerCase().includes(q.toLowerCase()));
+  const submit=()=>{if(!cu.n||!+cu.cal)return;add(meal,[cu.n,+cu.cal,+cu.p||0,+cu.c||0,+cu.f||0,0,0,0]);setCu({n:'',cal:'',p:'',c:'',f:''})};
+  return html`<div><${Head} t="What's on your plate?" d=${'You have logged '+R(d.t.cal)+' of '+d.T.cal+' kcal. Snap it, search it or type it in.'}/>
+  <div class="card mb-4 flex flex-wrap items-center gap-3" style=${{background:'linear-gradient(135deg,#15803d,#4ade80)',borderColor:'#16a34a',color:'#fff'}}><div class="grow"><h2 class="text-base">📸 Snap your meal</h2><p class="mt-1" style=${{color:'#dcfce7'}}>Point the camera at your plate to estimate calories and macros.</p></div><button class="btn pri" style=${{padding:'10px 20px',background:'#fff',color:'#15803d',borderColor:'#fff'}} onClick=${()=>setCam(true)}>Take photo</button></div>
+  <div class="grid grid-cols-4 gap-3 mb-4">${[['Calories left',d.T.cal-d.t.cal,''],['Protein left',d.T.p-d.t.p,'g'],['Carbs left',d.T.c-d.t.c,'g'],['Fat left',d.T.f-d.t.f,'g']].map(([l,v,u],i)=>html`<div key=${l} class="card text-center" style=${{padding:'10px 6px',borderTop:'4px solid '+['var(--ac)','var(--p)','var(--c)','var(--f)'][i]}}><div class="font-bold text-lg">${R(v)}${u}</div><div class="mu text-xs">${l}</div></div>`)}</div>
+  <div class="flex gap-2 mb-4 scroll">${MEALS.map(m=>html`<button key=${m} class=${'btn '+(meal===m?'on':'')} onClick=${()=>setMeal(m)}>${m}</button>`)}</div>
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="card flex flex-col gap-3"><h2>Add to ${meal.toLowerCase()}</h2><input class="inp" placeholder="Search foods" value=${q} onInput=${e=>setQ(e.target.value)}/>
+      <div class="flex flex-col max-h-72 overflow-auto">${list.length?list.map(f=>html`<button key=${f[0]} class="flex justify-between py-2 border-b text-left" style=${{borderColor:'var(--bd)'}} onClick=${()=>add(meal,f)}><span>${f[0]}</span><span class="mu">${f[1]} kcal, ${f[2]}g P</span></button>`):html`<p class="mu py-3">No matches. Add a custom entry below.</p>`}</div>
+      <h2 class="mt-2">Custom entry</h2>
+      <div class="grid grid-cols-4 gap-2"><input class="inp col-span-4" placeholder="Food name" value=${cu.n} onInput=${e=>setCu({...cu,n:e.target.value})}/>${['cal','p','c','f'].map(k=>html`<input key=${k} class="inp" inputmode="numeric" placeholder=${{cal:'kcal',p:'P g',c:'C g',f:'F g'}[k]} value=${cu[k]} onInput=${e=>setCu({...cu,[k]:e.target.value})}/>`)}</div>
+      <button class="btn pri" onClick=${submit}>Add entry</button></div>
+    <div class="card"><h2 class="mb-3">Today</h2>${MEALS.map(m=>{const it=s.log.filter(x=>x.meal===m);return html`<div key=${m} class="mb-4"><div class="flex justify-between font-medium mb-1"><span>${m}</span><span class="mu">${sum(it,x=>x.cal)} kcal</span></div>${it.length?it.map(x=>html`<div key=${x.id} class="flex justify-between py-1"><span>${x.n}</span><span class="mu">${x.cal} kcal <button class="ml-2" aria-label=${'Remove '+x.n} onClick=${()=>up(o=>({log:o.log.filter(y=>y.id!==x.id)}))}>x</button></span></div>`):html`<p class="mu">Nothing logged.</p>`}</div>`})}</div></div>
+  ${cam?html`<${Camera} onClose=${()=>setCam(false)} onShot=${async b=>{let msg='';try{const sm=window.claude&&await window.claude.use('sample');if(!sm)throw{code:'na'};
+    const r=await sm.json('You are a nutrition assistant. Look at this photo. If it does not clearly show food or drink, reply {"food":false,"items":[]}. Otherwise reply {"food":true,"items":[{"name":"short food name","cal":0,"p":0,"c":0,"f":0,"fi":0,"na":0,"k":0}]} with one item per distinct food and a realistic estimate for the visible portion (cal kcal, p/c/f/fi grams, na/k mg). JSON only.',{images:b,modelTier:'quick',cache:false});
+    if(r&&r.food&&Array.isArray(r.items)&&r.items.length)setRes(r.items.slice(0,8).map(i=>[String(i.name||'Food').slice(0,40),R(+i.cal||0),R(+i.p||0),R(+i.c||0),R(+i.f||0),R(+i.fi||0),R(+i.na||0),R(+i.k||0)]));else msg='No food detected in that photo. Frame your plate and try again.'}
+    catch(e){msg=e&&e.code==='not_granted'?'Photo analysis needs permission to use Claude. Allow it and try again.':'Photo analysis is unavailable right now. You can still search or type your food in.'}
+    setCam(false);if(msg)setNote(msg)}}/>`:null}
+  ${note?html`<${Modal} close=${()=>setNote('')}><h2 class="mb-2">Nothing to log</h2><p class="mb-4">${note}</p><button class="btn pri" onClick=${()=>setNote('')}>Got it</button><//>`:null}
+  ${res?html`<${Modal} close=${()=>setRes(null)}><h2 class="mb-1">Review detected items</h2><p class="mu mb-4">Remove anything that looks wrong, then confirm.</p>${res.map((f,i)=>html`<div key=${f[0]} class="flex justify-between py-2 border-b" style=${{borderColor:'var(--bd)'}}><span>${f[0]}<span class="mu block text-xs">${f[2]}g P, ${f[3]}g C, ${f[4]}g F</span></span><span>${f[1]} kcal <button class="ml-2 mu" onClick=${()=>setRes(res.filter((_,j)=>j!==i))}>x</button></span></div>`)}<div class="flex justify-between font-semibold py-3"><span>Total</span><span>${sum(res,f=>f[1])} kcal, ${sum(res,f=>f[2])}g P, ${sum(res,f=>f[3])}g C, ${sum(res,f=>f[4])}g F</span></div><div class="flex gap-2 justify-end"><button class="btn" onClick=${()=>setRes(null)}>Discard</button><button class="btn pri" onClick=${()=>{res.forEach(f=>add(meal,f));setRes(null)}}>Add to ${meal.toLowerCase()}</button></div><//>`:null}</div>`;
+}
+
+const EM=[[/chicken|turkey/,'🍗'],[/egg/,'🥚'],[/rice|quinoa|couscous/,'🍚'],[/tomato/,'🍅'],[/spinach|kale|lettuce|greens/,'🥬'],[/pasta|spaghetti|noodle|macaroni/,'🍝'],[/bean|lentil|chickpea/,'🫘'],[/cheese|feta|cheddar|mozz/,'🧀'],[/potato/,'🥔'],[/salmon|fish|tuna|shrimp/,'🐟'],[/beef|steak|pork|sausage|bacon/,'🥩'],[/onion|garlic/,'🧅'],[/pepper|chili/,'🌶️'],[/carrot/,'🥕'],[/broccoli/,'🥦'],[/mushroom/,'🍄'],[/avocado/,'🥑'],[/bread|tortilla|wrap|pita/,'🥖'],[/corn/,'🌽'],[/lemon|lime/,'🍋'],[/yogurt|milk|cream/,'🥛']];
+const emo=x=>{const m=EM.find(([r])=>r.test(x.toLowerCase()));return m?m[1]:'🍽️'};
+const cap=x=>x?x[0].toUpperCase()+x.slice(1):x;
+const oth=(I,re)=>{const o=I.filter(x=>!re.test(x.toLowerCase()));return o.length?o:I};
+
+function Plate({r}){
+  const em=r.ing.slice(0,5).map(emo);
+  return html`<div class="relative flex items-center justify-center rounded-2xl overflow-hidden" style=${{height:240,background:'linear-gradient(135deg,'+r.bg[0]+','+r.bg[1]+')'}}>
+    <div class="flex items-center justify-center" style=${{width:170,height:170,borderRadius:'50%',background:'#fff',boxShadow:'0 12px 30px rgba(0,0,0,.2),inset 0 0 0 8px #f1f5f2',fontSize:78}}>${r.e}</div>
+    ${em.map((x,i)=>{const a=(i/em.length)*2*Math.PI-Math.PI/2;return html`<span key=${i} class="absolute" style=${{fontSize:30,left:'calc(50% + '+Math.cos(a)*125+'px - 15px)',top:'calc(50% + '+Math.sin(a)*92+'px - 15px)'}}>${x}</span>`})}
+    <span class="absolute bottom-2 right-3 text-xs font-semibold" style=${{color:'rgba(0,0,0,.45)'}}>Reference serving idea</span></div>`;
+}
+const BGS=[['#fef3c7','#fbbf24'],['#ffedd5','#fb923c'],['#fee2e2','#f87171'],['#dcfce7','#4ade80'],['#fde2e4','#e76f51'],['#d1fae5','#10b981'],['#fce7f3','#f472b6'],['#e0f2fe','#38bdf8']];
+const KNOWN=new RegExp('\\b(?:'+'chicken turkey beef pork lamb bacon sausage ham steak egg salmon tuna cod shrimp fish tofu tempeh bean lentil chickpea pea rice quinoa couscous pasta spaghetti penne noodle macaroni bread toast tortilla wrap pita bagel oat oatmeal granola cereal flour potato tomato onion garlic pepper chili carrot broccoli spinach kale lettuce cabbage cucumber celery mushroom zucchini squash pumpkin eggplant asparagus corn avocado olive lemon lime apple banana orange berry berries strawberry strawberries blueberry blueberries grape mango pineapple peach pear cheese cheddar mozzarella feta parmesan milk yogurt butter cream basil parsley cilantro ginger cumin paprika soy nut almond peanut walnut honey jam salsa hummus broth stock beet radish leek scallion shallot cauliflower yam'.split(/\s+/).join('|')+')(?:e?s)?\\b','i');
+// name, emoji, minutes, ingredient keys (| = alternatives), [kcal, protein, carbs, fat] per serving, steps
+const RECIPES=[
+['Shakshuka','🍳',25,'egg,tomato,onion,pepper,garlic',[340,19,22,20],['Soften diced onion and pepper in olive oil for 5 minutes.','Stir in garlic, cumin and paprika, then add crushed tomatoes and simmer 10 minutes.','Make small wells in the sauce and crack in the eggs.','Cover and cook 6 to 8 minutes until the whites set. Serve with bread.']],
+['Chicken fried rice','🍚',25,'chicken,rice,egg,carrot|pea,onion|scallion',[520,38,60,14],['Use cold, day old rice so the grains stay separate.','Stir fry diced chicken in a hot wok until cooked through, then set aside.','Cook the vegetables 3 minutes, push aside and scramble the eggs.','Add rice, chicken and 2 tbsp soy sauce and toss over high heat for 3 minutes.']],
+['Spaghetti aglio e olio','🍝',20,'pasta|spaghetti,garlic,chili|pepper,parsley|basil',[480,13,72,16],['Boil the spaghetti in well salted water and save a cup of the water.','Gently cook sliced garlic and chili flakes in olive oil until pale gold.','Add the pasta with a splash of pasta water and toss until glossy.','Finish with parsley and black pepper.']],
+['Pasta pomodoro','🍝',25,'pasta|spaghetti|penne,tomato,garlic,basil,cheese|parmesan',[500,18,78,12],['Cook the pasta until just tender.','Simmer chopped tomatoes with garlic and olive oil for 12 minutes.','Toss the pasta through the sauce with a splash of pasta water.','Top with torn basil and grated parmesan.']],
+['Black bean quesadillas','🌯',15,'tortilla,bean,cheese|cheddar,pepper|onion,tomato|salsa',[560,26,62,22],['Saute diced pepper and onion for 4 minutes and stir in the beans.','Sprinkle cheese and the filling over half of each tortilla and fold.','Toast in a dry pan 2 to 3 minutes per side until crisp.','Cut into wedges and serve with salsa.']],
+['Chicken and broccoli stir fry','🥦',20,'chicken,broccoli,garlic,carrot|pepper,ginger|soy',[380,40,20,14],['Slice the chicken thin and marinate in soy sauce for 10 minutes.','Sear the chicken in a hot pan and set aside.','Stir fry broccoli, carrot, garlic and ginger for 4 minutes.','Return the chicken with a splash of soy sauce and toss to coat.']],
+['Red lentil soup','🍲',30,'lentil,carrot,onion,tomato,garlic',[320,18,52,4],['Soften onion, carrot and garlic in a pot for 5 minutes.','Add rinsed lentils, chopped tomato and 4 cups of water or stock.','Simmer 20 minutes until the lentils collapse.','Season with cumin, salt, pepper and a squeeze of lemon.']],
+['Sheet pan chicken and potatoes','🍗',40,'chicken,potato,broccoli|carrot|onion,garlic',[540,42,44,20],['Heat the oven to 220C (425F).','Toss chicken pieces and diced potatoes with oil, garlic, salt and pepper.','Roast 20 minutes, add the vegetables and roast 15 minutes more.','Rest for 2 minutes and serve from the tray.']],
+['Roasted salmon with vegetables','🐟',25,'salmon,potato|broccoli|asparagus,lemon,garlic',[560,40,32,28],['Heat the oven to 200C (400F) and roast the diced vegetables for 12 minutes.','Rub the salmon with oil, garlic, salt and pepper.','Nestle the salmon among the vegetables and roast 10 to 12 minutes.','Finish with lemon juice.']],
+['Greek salad','🥗',10,'cucumber,tomato,onion,feta|cheese,olive',[300,9,14,24],['Cut the tomato and cucumber into chunky pieces and slice the onion thin.','Toss with olives and olive oil, red wine vinegar and oregano.','Top with a slab of feta.','Serve right away.']],
+['Spinach and cheese omelette','🍳',10,'egg,spinach,cheese|feta|cheddar,mushroom',[360,24,4,27],['Saute sliced mushrooms and spinach in butter until wilted.','Whisk 3 eggs with salt and pepper and pour over the pan.','Sprinkle cheese on top and cook until the edges set.','Fold in half and slide onto a plate.']],
+['Beef tacos','🌮',20,'beef,tortilla,tomato,onion,cheese|lettuce',[610,34,44,32],['Brown the beef with diced onion and a spoon of taco spices.','Warm the tortillas in a dry pan for 20 seconds each.','Fill with beef, chopped tomato and shredded lettuce.','Top with grated cheese.']],
+['Tuna melt','🥪',12,'tuna,bread,cheese|cheddar,tomato',[430,32,30,20],['Mix drained tuna with a spoon of yogurt or mayo, salt and pepper.','Pile onto toasted bread with sliced tomato.','Cover with cheese.','Grill 3 minutes until bubbling.']],
+['Chickpea and spinach curry','🍛',30,'chickpea,tomato,onion,spinach,garlic,rice',[520,18,82,12],['Soften onion and garlic with curry powder for 5 minutes.','Add tomatoes and chickpeas and simmer 15 minutes.','Stir in the spinach until wilted.','Serve over rice.']],
+['Potato and egg breakfast hash','🥔',25,'potato,egg,onion,pepper,sausage|bacon',[450,20,46,20],['Parboil diced potatoes for 5 minutes and drain well.','Fry with onion, pepper and sausage until crisp, about 10 minutes.','Make wells and crack in the eggs.','Cover and cook 4 minutes until the whites set.']],
+['Mushroom risotto','🍄',40,'rice,mushroom,onion,cheese|parmesan,garlic',[480,12,70,16],['Saute onion and mushrooms until golden and add the rice for a minute.','Add hot stock a ladle at a time, stirring, for 18 minutes.','Stir in butter and grated parmesan off the heat.','Season and serve immediately.']],
+['Chicken wrap','🌯',12,'chicken,tortilla|wrap,lettuce,cheese|parmesan,tomato',[470,36,40,18],['Slice cooked or pan seared chicken.','Lay lettuce, tomato and chicken on a warm tortilla.','Add grated cheese and a spoon of yogurt sauce.','Roll tightly and cut in half.']],
+['Veggie lo mein','🍜',20,'noodle,broccoli,carrot,pepper,garlic,egg',[480,16,74,12],['Boil the noodles and drain.','Stir fry garlic, carrot, broccoli and pepper for 4 minutes.','Push aside and scramble the egg.','Toss with noodles and 2 tbsp soy sauce.']],
+['Banana oat pancakes','🥞',15,'banana,oat,egg,milk|yogurt',[320,13,50,8],['Blend one banana, a cup of oats, 2 eggs and a splash of milk.','Heat a lightly oiled non stick pan.','Pour small rounds and cook 2 minutes per side.','Serve with sliced banana.']],
+['Avocado toast with egg','🥑',10,'avocado,bread|toast,egg,tomato',[400,16,32,24],['Toast the bread.','Mash the avocado with salt, pepper and lemon juice.','Fry or poach an egg.','Stack the avocado, egg and sliced tomato on the toast.']],
+['Sausage and peppers','🌭',30,'sausage,pepper,onion,potato|pasta|rice',[520,24,32,32],['Brown the sausages in a large pan.','Add sliced peppers and onion and cook 12 minutes.','Serve with roasted potatoes, pasta or rice.','Finish with black pepper.']],
+['Yogurt berry parfait','🍓',5,'yogurt,berry|berries|strawberry|strawberries|blueberry|blueberries|banana,oat|granola|honey',[300,18,42,6],['Spoon yogurt into a glass.','Layer berries or sliced banana.','Add oats or granola for crunch.','Drizzle with honey.']],
+['Turkey chili','🌶️',40,'turkey|beef,bean,tomato,onion,pepper',[430,38,40,12],['Brown the turkey with onion and diced pepper.','Add chili powder and cumin and stir for a minute.','Add tomatoes and beans with a cup of water.','Simmer 25 minutes until thick.']],
+['Tomato basil soup','🍅',30,'tomato,onion,garlic,basil|cream|milk',[220,6,28,10],['Soften onion and garlic in olive oil.','Add tomatoes and 2 cups of stock and simmer 15 minutes.','Blend until smooth.','Stir in basil and a splash of cream or milk.']]
+].map(([n,e,m,k,c,s])=>({n,e,m,k,c,s}));
+const QUICK=['chicken','eggs','rice','spinach','tomato','pasta','beans','cheese','potato','salmon','tortilla','broccoli'];
+const COMBOS=['eggs, spinach, cheese','chicken, rice, broccoli','pasta, tomato, garlic, basil','tortilla, beans, cheese, tomato'];
+function Fridge({d,up}){
+  const [v,setV]=useState(''),[res,setRes]=useState(null),[err,setErr]=useState(''),[ml,setMl]=useState('Dinner');
+  const list=v.split(',').map(x=>x.trim()).filter(Boolean);
+  const tog=x=>{const l=list.includes(x)?list.filter(y=>y!==x):list.length<5?[...list,x]:list;setV(l.join(', '))};
+  const rem={cal:d.T.cal-d.t.cal,p:d.T.p-d.t.p,c:d.T.c-d.t.c,f:d.T.f-d.t.f};
+  const gen=()=>{
+    if(list.length<3||list.length>5){setErr('Pick 3 to 5 ingredients to get started.');return}
+    const bad=list.filter(x=>!KNOWN.test(x));
+    if(bad.length){setErr('"'+bad[0]+'" is not a food I recognize. Replace it with a real ingredient.');return}
+    const ranked=RECIPES.map(r=>{const ks=r.k.split(',');const hit=ks.filter(k=>list.some(x=>new RegExp('\\b(?:'+k+')(?:e?s)?\\b','i').test(x)));return{r,ks,hit,score:hit.length,frac:hit.length/ks.length}}).filter(x=>x.score>=2).sort((a,b)=>b.score-a.score||b.frac-a.frac).slice(0,5);
+    if(!ranked.length){setErr('No recipe fits those well. Add a protein or a staple like rice, pasta or bread.');return}
+    setErr('');setRes({ranked,i:0});
+  };
+  const cur=res&&res.ranked[res.i], r=cur&&cur.r;
+  const sc=r?Math.round(Math.max(.5,Math.min(1.5,rem.cal>150?rem.cal/r.c[0]:.5))*4)/4:1;
+  const mac=r?r.c.map(x=>R(x*sc)):[];
+  const names=r?cur.ks.map(k=>k.split('|')[0]):[];
+  return html`<div><${Head} t="Raid the fridge" d=${'Turn leftovers into a real meal that fits the '+Math.max(0,R(rem.cal))+' kcal you have left today.'}/>
+  <div class="grid gap-4 lg:grid-cols-5">
+    <div class="lg:col-span-2 flex flex-col gap-4">
+      <div class="card flex flex-col gap-3"><label for="ing" class="font-bold">What is hiding in there?</label><input id="ing" class="inp" placeholder="e.g. eggs, spinach, rice, feta" value=${v} onInput=${e=>setV(e.target.value)}/>
+        <div class="flex flex-wrap gap-2">${QUICK.map(x=>html`<button key=${x} class=${'chip '+(list.includes(x)?'on':'')} onClick=${()=>tog(x)}>${emo(x)} ${x}</button>`)}</div>
+        ${err?html`<p style=${{color:'var(--bad)'}}>${err}</p>`:null}
+        <button class="btn pri" style=${{padding:'11px'}} onClick=${gen}>Find a recipe</button></div>
+      <div class="card flex flex-col gap-3"><h2>🎯 Your budget left</h2>
+        <${Lin} label="Calories" v=${Math.max(0,rem.cal)} max=${d.T.cal} color="var(--ac)" unit=" kcal"/><${Lin} label="Protein" v=${Math.max(0,rem.p)} max=${d.T.p} color="var(--p)" unit="g"/><${Lin} label="Carbs" v=${Math.max(0,rem.c)} max=${d.T.c} color="var(--c)" unit="g"/><${Lin} label="Fat" v=${Math.max(0,rem.f)} max=${d.T.f} color="var(--f)" unit="g"/></div></div>
+    <div class="lg:col-span-3">${r?html`<div class="card flex flex-col gap-4"><${Plate} r=${{e:r.e,bg:BGS[RECIPES.indexOf(r)%BGS.length],ing:names}}/>
+      <div><h2 class="text-xl mb-1">${r.n}</h2><p class="mu">Matches ${cur.score} of ${cur.ks.length} ingredients. Serving scaled to ${sc}x to fit your budget.${rem.cal<=150?' Your budget is nearly spent, so this is a light portion.':''}</p></div>
+      <div class="flex flex-wrap gap-2"><span class="chip">⏱ ${r.m} min</span><span class="chip">🔥 ${mac[0]} kcal</span><span class="chip" style=${{color:'var(--p)'}}>${mac[1]}g protein</span><span class="chip" style=${{color:'var(--c)'}}>${mac[2]}g carbs</span><span class="chip" style=${{color:'var(--f)'}}>${mac[3]}g fat</span></div>
+      <div><div class="flex flex-wrap gap-2">${cur.ks.map((k,i)=>html`<span key=${k} class=${'chip '+(cur.hit.includes(k)?'on':'')}>${cur.hit.includes(k)?'✓':'+'} ${names[i]}</span>`)}</div><p class="mu text-xs mt-2">Assumes oil, salt and pepper. Items marked + are not in your list.</p></div>
+      <ol class="flex flex-col gap-3">${r.s.map((x,i)=>html`<li key=${i} class="flex gap-3"><span class="shrink-0 flex items-center justify-center font-bold" style=${{width:26,height:26,borderRadius:13,background:'var(--ac)',color:'#fff'}}>${i+1}</span><span class="pt-0.5">${x}</span></li>`)}</ol>
+      <div class="flex gap-2 flex-wrap items-center"><select class="inp" style=${{width:'auto'}} aria-label="Meal" value=${ml} onChange=${e=>setMl(e.target.value)}>${MEALS.map(x=>html`<option key=${x}>${x}</option>`)}</select><button class="btn pri" onClick=${()=>up(o=>({log:[...o.log,mk(ml,[r.n+(sc!==1?' ('+sc+'x)':''),mac[0],mac[1],mac[2],mac[3],0,0,0])]}))}>Log it</button><button class="btn" onClick=${()=>setRes({...res,i:(res.i+1)%res.ranked.length})}>Try another recipe</button><a class="btn" target="_blank" rel="noopener noreferrer" href=${'https://www.google.com/search?q='+encodeURIComponent(r.n+' recipe')}>Full recipe on Google</a></div></div>`
+    :html`<div class="card flex flex-col gap-4"><div class="grid grid-cols-6 gap-2 text-center" style=${{fontSize:32}}>${['🥚','🥬','🍅','🍚','🧀','🍗','🥕','🍝','🥔','🐟','🌶️','🥑'].map(x=>html`<span key=${x} class="rounded-xl py-2" style=${{background:'var(--acl)'}}>${x}</span>`)}</div><div><h2 class="text-lg mb-1">Your meal shows up here</h2><p class="mu">Pick 3 to 5 real ingredients and we will match them to classic recipes, sized to your remaining macros.</p></div>
+      <div><div class="font-semibold mb-2">Need a spark? Try a combo</div><div class="flex flex-wrap gap-2">${COMBOS.map(x=>html`<button key=${x} class="chip" onClick=${()=>setV(x)}>${x}</button>`)}</div></div></div>`}</div></div></div>`;
+}
+
+function Coach({s,d,up}){
+  const m=d.t,tips=[];
+  if(d.T.p-m.p>25)tips.push('Protein is running '+R(d.T.p-m.p)+'g behind. A shake, Greek yogurt or a chicken snack gets you there.');
+  if(s.water<5)tips.push('Only '+s.water+' of 8 glasses so far. Pour one now and one with your next meal.');
+  if(m.na>2300)tips.push('Salt is running high. Go fresh and unprocessed for the rest of the day.');
+  if(m.fi<15)tips.push('Fiber is only '+R(m.fi)+'g. Berries, lentils or a big salad will fix that fast.');
+  if(m.cal>d.T.cal)tips.push('You are '+R(m.cal-d.T.cal)+' kcal over. One day never decides a week, and the plan on the right spreads it out gently.');
+  if(!tips.length)tips.push('You are right on pace today. Keep the momentum and log your next meal as you go.');
+  const [msgs,setMsgs]=useState([]),[inp,setInp]=useState(''),[busy,setBusy]=useState(false),box=useRef(null);
+  useEffect(()=>{if(box.current)box.current.scrollTop=box.current.scrollHeight},[msgs]);
+  const p=s.profile;
+  const ctx=()=>'You are the coach inside NutriTrack Pro, a nutrition app. Be warm, direct and practical. Keep answers under 120 words unless asked for more. Never use em dashes. Do not diagnose medical conditions, suggest seeing a professional for medical concerns, and never encourage extreme dieting. User data: daily target '+d.T.cal+' kcal, estimated TDEE '+d.tdee+' kcal, protein target '+d.T.p+'g, carbs '+d.T.c+'g, fat '+d.T.f+'g. Eaten today: '+R(m.cal)+' kcal, '+R(m.p)+'g protein, '+R(m.c)+'g carbs, '+R(m.f)+'g fat, '+R(m.fi)+'g fiber, '+R(m.na)+' mg sodium. Water: '+s.water+' of 8 glasses. '+(p?'Profile: age '+p.age+', '+p.sex+', '+p.wt+' kg, goal '+p.tw+' kg, '+p.ht+' cm. ':'')+'Foods logged today: '+(s.log.map(x=>x.n).join(', ')||'none')+'.';
+  const send=async txt=>{
+    txt=(txt||inp).trim();if(!txt||busy)return;setInp('');
+    const hist=[...msgs,{role:'user',content:txt}];setMsgs([...hist,{role:'assistant',content:''}]);setBusy(true);
+    try{
+      const sm=window.claude&&await window.claude.use('sample');if(!sm)throw{code:'na'};
+      const turns=hist.slice(-7).map((x,i,a)=>i===a.length-1?{role:'user',content:ctx()+'\n\nUser message: '+x.content}:x);
+      const r=await sm(turns,{modelTier:'quick',cache:false,onText:({text:tx})=>setMsgs([...hist,{role:'assistant',content:tx}])});
+      setMsgs([...hist,{role:'assistant',content:r.text}]);
+    }catch(e){setMsgs([...hist,{role:'assistant',content:e&&e.code==='not_granted'?'I need permission to use Claude before I can chat. Send your message again and allow it.':'The coach chat is unavailable right now. The tips above still reflect your day.'}])}
+    setBusy(false)};
+  const chips=['What should I eat next?','Why did my TDEE change?','I overate today. Help.','How do I hit my protein?'];
+  return html`<div><${Head} t="Your coach has notes" d="Real time nudges based on everything you have eaten today."/>
+  <div class="grid gap-4 lg:grid-cols-2 mb-4"><div class="card"><h2 class="mb-3">⚡ Today's guidance</h2><ul class="flex flex-col gap-3">${tips.map(x=>html`<li key=${x} class="pl-3" style=${{borderLeft:'3px solid var(--ac)'}}>${x}</li>`)}</ul></div>
+  <div class="card"><h2 class="mb-1">🛟 Slip-up recovery</h2><p class="mu mb-4">${d.surplus>0?'Week surplus so far: '+d.surplus+' kcal. Nothing to fix, only smooth out.':'You are on or under your weekly pace.'}</p>
+    <div class="scroll"><div class="flex gap-2">${DAYS.map((x,i)=>{const v=i<=wk?d.week[i]:(s.recovery?d.adj:d.target);return html`<div key=${x} class="flex-1 min-w-[56px] rounded-xl p-2 text-center" style=${{border:'1px solid var(--bd)',background:i===wk?'var(--acl)':'none'}}><div class="mu text-xs">${x}</div><div class="font-bold">${R(v)}</div></div>`})}</div></div>
+    <p class="mu mt-3">${d.rem>0?'Remaining '+d.rem+' days move to '+d.adj+' kcal (target '+d.target+').'+(d.capped?' Reduction is capped at 15% per day to protect adherence.':''):'The week is complete.'}</p>
+    <button class=${'btn mt-4 '+(s.recovery?'':'pri')} onClick=${()=>up({recovery:!s.recovery})}>${s.recovery?'Undo recovery plan':'Apply recovery plan'}</button></div></div>
+  <div class="card flex flex-col gap-3"><h2>💬 Ask your coach</h2>
+    <div ref=${box} class="flex flex-col gap-2 overflow-auto rounded-xl p-3" style=${{height:320,background:'#f4f7f5'}}>
+      ${msgs.length?msgs.map((x,i)=>html`<div key=${i} class="max-w-[85%] rounded-2xl px-3 py-2" style=${{alignSelf:x.role==='user'?'flex-end':'flex-start',background:x.role==='user'?'var(--ac)':'#fff',color:x.role==='user'?'#fff':'var(--tx)',border:x.role==='user'?'none':'1px solid var(--bd)',whiteSpace:'pre-wrap'}}>${x.content?x.content.replace(/[\u2014\u2013]/g,','):'Thinking...'}</div>`):html`<div class="m-auto text-center mu max-w-xs">Ask about meals, macros, cravings, plateaus or how your numbers are calculated. I can see your day.</div>`}</div>
+    <div class="flex flex-wrap gap-2">${chips.map(x=>html`<button key=${x} class="chip" disabled=${busy} onClick=${()=>send(x)}>${x}</button>`)}</div>
+    <div class="flex gap-2"><input class="inp" placeholder="Message your coach" value=${inp} onInput=${e=>setInp(e.target.value)} onKeyDown=${e=>{if(e.key==='Enter')send()}}/><button class="btn pri" disabled=${busy} onClick=${()=>send()}>Send</button></div></div></div>`;
+}
+
+function Pick({value,onChange,label,em,items,RE}){
+  const [open,setOpen]=useState(false),[upw,setUpw]=useState(false),ref=useRef(null);
+  useEffect(()=>{if(!open)return;
+    const f=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false)},k=e=>{if(e.key==='Escape')setOpen(false)};
+    document.addEventListener('mousedown',f);document.addEventListener('touchstart',f);document.addEventListener('keydown',k);
+    return()=>{document.removeEventListener('mousedown',f);document.removeEventListener('touchstart',f);document.removeEventListener('keydown',k)}},[open]);
+  const has=value!==undefined&&value!==null, r=has?items[value]:null;
+  const toggle=()=>{if(!open&&ref.current){const b=ref.current.getBoundingClientRect();setUpw(window.innerHeight-b.bottom<300&&b.top>300)}setOpen(!open)};
+  return html`<div ref=${ref} class="relative mb-1.5" style=${{zIndex:open?30:1}}>
+    <button type="button" class="w-full flex items-center gap-2 rounded-xl p-2 text-left" aria-haspopup="listbox" aria-expanded=${open} onClick=${toggle} style=${{background:has?'var(--acl)':'#f4f7f5',border:'1px solid '+(open?'var(--ac)':has?'#bbf7d0':'transparent')}}>
+      <span style=${{fontSize:22}}>${has?RE[value]:em}</span>
+      <span class="min-w-0 flex-1"><span class=${'block truncate font-semibold '+(has?'':'mu')}>${has?r.n:'Add '+label.toLowerCase()}</span><span class="block mu text-xs">${label}${has?' | '+r.cal+' kcal':''}</span></span>
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style=${{transform:open?'rotate(180deg)':'none',transition:'transform .15s',color:'var(--mu)'}}><path d="M5 8l5 5 5-5"/></svg></button>
+    ${open?html`<div role="listbox" class="absolute left-0 right-0 rounded-2xl p-1.5 overflow-auto" style=${{[upw?'bottom':'top']:'calc(100% + 6px)',background:'#fff',border:'1px solid var(--bd)',boxShadow:'0 16px 40px rgba(16,35,26,.22)',maxHeight:280,minWidth:230}}>
+      ${items.map((x,i)=>html`<button type="button" role="option" aria-selected=${value===i} key=${i} class="opt w-full flex items-center gap-2 rounded-xl p-2 text-left" style=${{background:value===i?'var(--acl)':'transparent'}} onClick=${()=>{onChange(i);setOpen(false)}}><span style=${{fontSize:20}}>${RE[i]}</span><span class="min-w-0 flex-1"><span class="block font-semibold truncate">${x.n}</span><span class="block mu text-xs">${x.cal} kcal | ${x.p}g protein</span></span>${value===i?html`<span style=${{color:'var(--ac)',fontWeight:700}}>✓</span>`:null}</button>`)}
+      ${has?html`<button type="button" class="opt w-full rounded-xl p-2 text-left mu" onClick=${()=>{onChange(null);setOpen(false)}}>Clear this meal</button>`:null}</div>`:null}</div>`;
+}
+function Planner({s,up}){
+  const slots=[['Breakfast','🍳'],['Lunch','🥗'],['Dinner','🍝']], RE=['🍚','🥣','🐟','🍳','🍲'];
+  const AI={Produce:['🥬','#ecfdf3','#bbf7d0'],Dairy:['🥛','#eff6ff','#bfdbfe'],Meat:['🍗','#fff1f2','#fecdd3'],Pantry:['🫘','#fffbeb','#fde68a']};
+  const groc=useMemo(()=>{const g={};Object.values(s.plan).forEach(i=>REC[i]?.ing.forEach(([n,q,u,a])=>{const k=a+n;g[k]=g[k]||{n,q:0,u,a};g[k].q+=q}));return g},[s.plan]);
+  const kc=x=>sum(slots,([sl])=>REC[s.plan[x+sl]]?.cal||0), total=sum(DAYS,kc), cnt=Object.keys(s.plan).length;
+  const setP=(k,val)=>up(o=>{const p={...o.plan};val===''?delete p[k]:p[k]=+val;return{plan:p}});
+  return html`<div><${Head} t="Plan the week, skip the 6 pm panic" d=${cnt+' meals planned, averaging '+R(total/7)+' kcal a day. Pick your meals and the shopping list writes itself.'}/>
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">${DAYS.map(x=>html`<div key=${x} class="card" style=${{padding:12}}>
+    <div class="flex justify-between items-center mb-2"><b class="text-base">${x}</b><span class="font-bold" style=${{color:'var(--ac)'}}>${kc(x)} kcal</span></div>
+    ${slots.map(([sl,em])=>html`<${Pick} key=${x+sl} label=${sl} em=${em} value=${s.plan[x+sl]} items=${REC} RE=${RE} onChange=${v=>up(o=>{const p={...o.plan};v===null?delete p[x+sl]:p[x+sl]=v;return{plan:p}})}/>`)}</div>`)}</div>
+  <div class="card"><h2 class="mb-3">🛒 Grocery list</h2>${Object.keys(groc).length?html`<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${Object.keys(AI).map(a=>{const it=Object.values(groc).filter(x=>x.a===a);return html`<div key=${a} class="rounded-xl p-3" style=${{background:AI[a][1],border:'1px solid '+AI[a][2]}}><div class="font-bold mb-2">${AI[a][0]} ${a} <span class="mu font-normal">(${it.length})</span></div>${it.length?it.map(x=>html`<label key=${x.n} class="flex items-center gap-2 py-1"><input type="checkbox" checked=${!!s.checked[x.n]} onChange=${()=>up(o=>({checked:{...o.checked,[x.n]:!o.checked[x.n]}}))}/><span class=${s.checked[x.n]?'mu line-through':''}>${x.n}, ${x.q}${x.u==='pc'?'':x.u}</span></label>`):html`<p class="mu">Nothing needed</p>`}</div>`})}</div>`:html`<p class="mu">Pick a meal above and your list fills in here, sorted by aisle.</p>`}</div></div>`;
+}
+
+function Plot({data,bars,ref0,color,hi,fmt=x=>R(x)}){
+  const mx=Math.max(...data,ref0||0),mn=bars?0:Math.min(...data),tag={background:'var(--card)',padding:'0 4px',borderRadius:4};
+  return html`<div><div class="relative"><${Chart} data=${data} bars=${bars} ref0=${ref0} color=${color} hi=${hi} h=${150}/><span class="absolute left-0 top-0 mu text-xs" style=${tag}>${fmt(mx)}</span><span class="absolute left-0 bottom-0 mu text-xs" style=${tag}>${fmt(mn)}</span></div><div class="flex justify-between mu text-xs mt-1"><span>${data.length-1} days ago</span><span>Today</span></div></div>`;
+}
+function Analytics({s,d}){
+  const [n,setN]=useState(30);
+  const h=[...d.H.slice(-(n-1)),{cal:R(d.t.cal),wt:d.cw,water:s.water}], done=h.slice(0,-1);
+  const cons=R(done.filter(x=>Math.abs(x.cal-d.target)<=d.target*.1).length/done.length*100);
+  const wAvg=sum(h,x=>x.water)/h.length, wHit=h.filter(x=>x.water>=8).length, dw=+(h[h.length-1].wt-h[0].wt).toFixed(1);
+  const micro=[['Fiber',d.t.fi,30,'g','var(--k)'],['Sodium',d.t.na,2300,' mg','var(--c)'],['Potassium',d.t.k,3400,' mg','var(--f)'],['Hydration',s.water*250,2000,' ml','#0ea5e9']];
+  const hd=(a,b)=>html`<div class="flex flex-wrap justify-between gap-x-3 gap-y-1 mb-3"><h2>${a}</h2><span class="mu">${b}</span></div>`;
+  return html`<div><${Head} t="Progress you can see" d="Zoom out to spot the habits that actually move the needle.">${html`<div class="flex gap-2">${[7,30,90].map(x=>html`<button key=${x} class=${'btn '+(n===x?'on':'')} onClick=${()=>setN(x)}>${x} days</button>`)}</div>`}<//>
+  <div class="grid grid-cols-3 gap-3 mb-4">${[['Avg calories',R(sum(done,x=>x.cal)/done.length)+' kcal','var(--ac)'],['Weight change',(dw>0?'+':'')+dw+' kg','var(--p)'],['Avg water',wAvg.toFixed(1)+' glasses','#0ea5e9']].map(([l,v,c])=>html`<div key=${l} class="card" style=${{padding:'12px',borderTop:'4px solid '+c}}><div class="mu text-xs">${l}</div><div class="font-bold text-base sm:text-xl">${v}</div></div>`)}</div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div class="card min-w-0">${hd('Calories',cons+'% of days within 10% of target')}<${Plot} data=${h.map(x=>x.cal)} bars=${true} ref0=${d.target} color="var(--ac)" hi="var(--c)"/></div>
+    <div class="card min-w-0">${hd('Weight',h[0].wt+' to '+h[h.length-1].wt+' kg')}<${Plot} data=${h.map(x=>x.wt)} color="var(--p)" fmt=${x=>x.toFixed(1)}/></div>
+    <div class="card min-w-0">${hd('Water habit',wHit+' of '+h.length+' days hit 8 glasses')}<${Plot} data=${h.map(x=>x.water)} bars=${true} ref0=${8} color="#7dd3fc" hi="#0ea5e9"/></div>
+    <div class="card min-w-0"><h2 class="mb-3">Micronutrient matrix</h2><div class="grid grid-cols-2 gap-3">${micro.map(([l,v,g,u,c])=>html`<div key=${l} class="rounded-xl p-3 min-w-0" style=${{border:'1px solid var(--bd)'}}><div class="mu">${l}</div><div class="text-lg font-bold">${R(v)}<span class="mu text-xs font-normal">${u}</span></div><div class="bar my-2"><i style=${{width:Math.min(100,v/g*100)+'%',background:c}}></i></div><div class="mu text-xs">${l==='Sodium'?'Limit ':'Goal '}${g}${u}</div></div>`)}</div></div>
+  </div></div>`;
+}
+
+const ICON={Dashboard:'🏠',Log:'📝',Fridge:'🍳',Coach:'💬',Planner:'🗓️',Analytics:'📊'};
+function App(){
+  const [s,setS]=useState(()=>{try{return{...init,...JSON.parse(localStorage.getItem('ntp3')||'{}')}}catch(e){return init}});
+  const [pg,setPg]=useState('Dashboard');
+  useEffect(()=>{try{localStorage.setItem('ntp3',JSON.stringify(s))}catch(e){}},[s]);
+  const up=p=>setS(o=>({...o,...(typeof p==='function'?p(o):p)}));
+  const d=useMemo(()=>calc(s),[s]);
+  const P={Dashboard,Log,Fridge,Coach,Planner,Analytics}, names=Object.keys(P), Page=P[pg];
+  return html`<div class="min-h-screen">
+    
+    <main class="flex-1 min-w-0 p-3 pb-28 md:p-6 md:pb-28 max-w-6xl mx-auto w-full"><div class="flex justify-between items-center mb-3"><span class="font-bold text-lg" style=${{color:"var(--ac)"}}>NutriTrack Pro</span><button class="btn" onClick=${()=>up({showSet:true})}>Profile settings</button></div><${Page} s=${s} d=${d} up=${up}/></main>${(!s.profile||s.showSet)?html`<${Onboard} s=${s} up=${up}/>`:null}
+    <nav class="fixed z-40 bottom-3 inset-x-3 mx-auto max-w-2xl grid grid-cols-6 gap-1 p-1.5 rounded-2xl" style=${{background:'#fff',border:'1px solid var(--bd)',boxShadow:'0 8px 30px rgba(16,35,26,.18)',marginBottom:'env(safe-area-inset-bottom,0px)'}}>${names.map(n=>html`<button key=${n} aria-label=${n} class="flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11px]" style=${{background:pg===n?'var(--ac)':'transparent',color:pg===n?'#fff':'var(--mu)',fontWeight:600}} onClick=${()=>{setPg(n);window.scrollTo(0,0)}}><span style=${{fontSize:18,lineHeight:1}}>${ICON[n]}</span>${n}</button>`)}</nav></div>`;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App}/>`);
+</script>
+</body>
+</html>
